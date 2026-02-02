@@ -1,8 +1,10 @@
 # homebrew-legacy
 
-backup old version formula or casks
+Legacy Homebrew formulae and casks.
 
 ## How to use
+
+Take installing an older version of squirrel as an example.
 
 ```shell
 brew tap xooooooooox/legacy
