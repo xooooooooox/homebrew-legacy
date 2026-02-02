@@ -1,0 +1,6 @@
+*
+!.gitignore
+!*.md
+!Casks
+!Casks/**
+!License
