@@ -62,6 +62,9 @@ jobs:
         working-directory: ${{ steps.tap.outputs.dir }}
         run: .github/scripts/verify.sh "$TYPE" "$NAME" "$VERSION" "$RUNNER_TEMP/report.md"
 
+      # Requires the repo setting "Allow GitHub Actions to create and approve
+      # pull requests" (Settings -> Actions -> General); the permissions block
+      # above cannot override it.
       - name: Create pull request
         working-directory: ${{ steps.tap.outputs.dir }}
         env:
