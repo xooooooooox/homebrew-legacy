@@ -1,4 +1,4 @@
-cask "hazel" do
+cask "hazel@5.3.6" do
   version "5.3.6"
   sha256 "ad7729c1f3db15add28eab470b0d271594dbbe94ebf512178857574ffd0ff3b8"
 
@@ -14,7 +14,7 @@ cask "hazel" do
   end
 
   auto_updates true
-  depends_on macos: ">= :mojave"
+  depends_on macos: :catalina
 
   app "Hazel.app"
 
