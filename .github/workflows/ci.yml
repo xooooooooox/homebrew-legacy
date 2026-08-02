@@ -1,0 +1,17 @@
+name: ci
+
+on:
+  pull_request:
+
+jobs:
+  tap-syntax:
+    runs-on: macos-latest
+    steps:
+      - name: Set up Homebrew (places this tap checkout in the tap location)
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: brew style
+        run: brew style "${GITHUB_REPOSITORY_OWNER}/legacy"
+
+      - name: brew audit
+        run: brew audit --tap "${GITHUB_REPOSITORY_OWNER}/legacy"

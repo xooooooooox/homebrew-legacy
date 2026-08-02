@@ -3,4 +3,8 @@
 !*.md
 !Casks
 !Casks/**
+!Formula
+!Formula/**
+!.github
+!.github/**
 !License

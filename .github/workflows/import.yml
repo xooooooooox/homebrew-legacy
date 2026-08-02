@@ -1,0 +1,86 @@
+name: import
+
+on:
+  workflow_dispatch:
+    inputs:
+      type:
+        description: "What to import"
+        type: choice
+        options:
+          - cask
+          - formula
+        required: true
+      name:
+        description: "Official token / formula name (e.g. squirrel)"
+        type: string
+        required: true
+      version:
+        description: "Target version (e.g. 1.0.2)"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  import:
+    runs-on: macos-latest
+    env:
+      TYPE: ${{ inputs.type }}
+      NAME: ${{ inputs.name }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Set up Homebrew (places this tap checkout in the tap location)
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Locate tap directory
+        id: tap
+        run: |
+          TAP_NAME="${GITHUB_REPOSITORY_OWNER}/legacy"
+          TAP_DIR="$(brew --repository "$TAP_NAME")"
+          if [ ! -d "$TAP_DIR" ]; then
+            echo "error: tap checkout not found at ${TAP_DIR}" >&2
+            exit 1
+          fi
+          echo "dir=$TAP_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Tap homebrew/core (needed by brew extract)
+        if: ${{ inputs.type == 'formula' }}
+        run: brew tap --force homebrew/core
+
+      - name: Import
+        working-directory: ${{ steps.tap.outputs.dir }}
+        run: |
+          if [ "$TYPE" = "cask" ]; then
+            .github/scripts/import-cask.sh "$NAME" "$VERSION"
+          else
+            .github/scripts/import-formula.sh "$NAME" "$VERSION"
+          fi
+
+      - name: Verify
+        working-directory: ${{ steps.tap.outputs.dir }}
+        run: .github/scripts/verify.sh "$TYPE" "$NAME" "$VERSION" "$RUNNER_TEMP/report.md"
+
+      - name: Create pull request
+        working-directory: ${{ steps.tap.outputs.dir }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="import/${NAME}-${VERSION}"
+          if [ "$TYPE" = "cask" ]; then
+            FILE="Casks/${NAME}/${NAME}@${VERSION}.rb"
+          else
+            FILE="Formula/${NAME}/${NAME}@${VERSION}.rb"
+          fi
+          git checkout -b "$BRANCH"
+          git add "$FILE"
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "${TYPE}: add ${NAME}@${VERSION}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --title "${TYPE}: add ${NAME}@${VERSION}" \
+            --body-file "$RUNNER_TEMP/report.md"
