@@ -2,6 +2,8 @@
 
 Legacy Homebrew formulae and casks, pinned at specific versions.
 
+Sibling taps: [patched](https://github.com/xooooooooox/homebrew-patched) (our fork builds) - [prebuilt](https://github.com/xooooooooox/homebrew-prebuilt) (official upstream binaries, current versions).
+
 Naming convention: `Casks/<app>/<app>@<version>.rb`, cask token `<app>@<version>`.
 
 ## How to use
