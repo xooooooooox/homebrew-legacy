@@ -41,3 +41,41 @@ The scripts also run locally from the repo root:
 ```shell
 .github/scripts/import-cask.sh squirrel 1.0.2
 ```
+
+## Rebottle: keep pouring on unsupported macOS
+
+Plain imports compile from source: `brew extract` strips the historical
+`bottle do` block, and Homebrew ships no bottles for unsupported macOS
+versions (monterey bottles ended 2024-09 with the Sequoia release). But
+published bottles are never deleted from ghcr.io — so they can be re-hosted.
+
+GitHub → Actions → "rebottle" → Run workflow:
+
+- `name`: core formula name, e.g. `jq`
+- `version`: optional; default = the newest version whose bottle block still
+  carries the requested tag (found in homebrew-core git history)
+- `bottle_tag`: default `monterey`
+
+The workflow imports that version, downloads the official historical bottle
+blob from ghcr.io, repacks the keg under this tap's formula name, uploads it
+to a release named `formula-<name>@<version>`, injects a matching
+`bottle do` block, verifies (`brew fetch --bottle-tag` proves the pour path
+end-to-end), and opens a PR. On the target device the formula then installs
+with a plain pour — no compiler, and it is the original core-built binary.
+
+Limits:
+
+- Versions are frozen at each formula's last bottled release for the tag
+  (~2024-09 for monterey). For current versions use upstream-binary managers
+  (vfox/mise) or a source-building tap with its own bottle CI instead.
+- Runtime dependencies are not rewritten: they resolve to *current* core and
+  would source-build on the device. The script warns loudly; rebottle each
+  runtime dependency too and point `depends_on` at this tap, or stick to
+  dependency-free formulas.
+- Core formula names containing `@` are not supported.
+
+The script also runs locally from the repo root (upload is CI-only):
+
+```shell
+.github/scripts/rebottle.sh jq
+```

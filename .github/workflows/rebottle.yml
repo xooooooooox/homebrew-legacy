@@ -1,0 +1,109 @@
+# Rebottle: import the newest core version of a formula that still has a
+# bottle for an unsupported macOS (default monterey), re-host that official
+# historical bottle as a release asset of this repo, and open a PR adding
+# the formula with a matching `bottle do` block. See README "Rebottle".
+name: rebottle
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Core formula name (e.g. jq)"
+        type: string
+        required: true
+      version:
+        description: "Version override (default: newest with a bottle for the tag)"
+        type: string
+        required: false
+      bottle_tag:
+        description: "Bottle tag to re-host"
+        type: string
+        required: false
+        default: "monterey"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebottle:
+    runs-on: macos-latest
+    env:
+      NAME: ${{ inputs.name }}
+      WANT_VERSION: ${{ inputs.version }}
+      BOTTLE_TAG: ${{ inputs.bottle_tag }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Set up Homebrew (places this tap checkout in the tap location)
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Locate tap directory
+        id: tap
+        run: |
+          TAP_NAME="${GITHUB_REPOSITORY_OWNER}/legacy"
+          TAP_DIR="$(brew --repository "$TAP_NAME")"
+          if [ ! -d "$TAP_DIR" ]; then
+            echo "error: tap checkout not found at ${TAP_DIR}" >&2
+            exit 1
+          fi
+          echo "dir=$TAP_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Tap homebrew/core (needed by brew extract)
+        run: brew tap --force homebrew/core
+
+      - name: Rebottle
+        id: rebottle
+        working-directory: ${{ steps.tap.outputs.dir }}
+        run: .github/scripts/rebottle.sh "$NAME" ${WANT_VERSION:+"$WANT_VERSION"}
+
+      - name: Upload bottle to release
+        working-directory: ${{ steps.tap.outputs.dir }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.rebottle.outputs.release_tag }}
+          BOTTLE_FILE: ${{ steps.rebottle.outputs.bottle_file }}
+          VERSION: ${{ steps.rebottle.outputs.version }}
+        run: |
+          gh release view "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes "Official historical homebrew-core bottle for ${NAME} ${VERSION}, re-hosted for the ${BOTTLE_TAG} bottle tag (keg dir renamed to this tap's formula name). See README \"Rebottle\"."
+          gh release upload "$RELEASE_TAG" "$BOTTLE_FILE" -R "$GITHUB_REPOSITORY" --clobber
+
+      # The crux check: proves brew resolves root_url + url-encoded asset name
+      # (@ becomes %40) end-to-end against the release we just published.
+      - name: Fetch bottle through brew
+        env:
+          VERSION: ${{ steps.rebottle.outputs.version }}
+        run: |
+          brew fetch --formula --bottle-tag "$BOTTLE_TAG" \
+            "${GITHUB_REPOSITORY_OWNER}/legacy/${NAME}@${VERSION}"
+
+      - name: Verify
+        working-directory: ${{ steps.tap.outputs.dir }}
+        env:
+          VERSION: ${{ steps.rebottle.outputs.version }}
+        run: .github/scripts/verify.sh formula "$NAME" "$VERSION" "$RUNNER_TEMP/report.md"
+
+      # Requires the repo setting "Allow GitHub Actions to create and approve
+      # pull requests" (Settings -> Actions -> General); the permissions block
+      # above cannot override it.
+      - name: Create pull request
+        working-directory: ${{ steps.tap.outputs.dir }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.rebottle.outputs.version }}
+        run: |
+          BRANCH="rebottle/${NAME}-${VERSION}"
+          FILE="Formula/${NAME}/${NAME}@${VERSION}.rb"
+          git checkout -b "$BRANCH"
+          git add "$FILE"
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "formula: rebottle ${NAME}@${VERSION} (${BOTTLE_TAG})"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --title "formula: rebottle ${NAME}@${VERSION} (${BOTTLE_TAG})" \
+            --body-file "$RUNNER_TEMP/report.md"
