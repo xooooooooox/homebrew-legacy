@@ -2,8 +2,7 @@ cask "hazel@5.3.6" do
   version "5.3.6"
   sha256 "ad7729c1f3db15add28eab470b0d271594dbbe94ebf512178857574ffd0ff3b8"
 
-  url "https://s3.amazonaws.com/Noodlesoft/Hazel-#{version}.dmg",
-      verified: "s3.amazonaws.com/Noodlesoft/"
+  url "https://s3.amazonaws.com/Noodlesoft/Hazel-#{version}.dmg"
   name "Hazel"
   desc "Automated organisation"
   homepage "https://www.noodlesoft.com/"
